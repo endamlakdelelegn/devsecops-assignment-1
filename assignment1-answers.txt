@@ -227,10 +227,17 @@ https://github.com/endamlakdelelegn/devsecops-assignment-1
 
 GIT LOG OUTPUT (git log --oneline --graph --all)
 -------------------------------------------------
-[Paste the output of: git log --oneline --graph --all]
-
-Example output after completing Tasks 4 and 5:
-  * bfe2021 (HEAD -> main, feature/add-config) Initial commit: add app entry point, config module, env example and gitignore
+*   aff137f (HEAD -> main, origin/main) Merge pull request #1 from endamlakdelelegn/feature/add-config
+|\
+| * 09e9103 (origin/feature/add-config, feature/add-config) docs: record pull request URL
+| * 9da0a85 docs: update assignment details
+| * 277a1df feat: load app configuration from environment variables
+|/
+* fee2352 (task4-base) chore: create assignment repository foundation
+* 3be16fe (backup/pre-split-main, backup/pre-split-feature) feat: add assignment answers and complete Task 5 env config setup
+* 5c8da8b Initial commit: add app entry point, config module, env example and gitignore
+* b786ee1 (backup/assignment1-current) feat: add assignment answers and complete Task 5 env config setup
+* bfe2021 Initial commit: add app entry point, config module, env example and gitignore
 
 
 PULL REQUEST URL
@@ -240,12 +247,14 @@ https://github.com/endamlakdelelegn/devsecops-assignment-1/pull/1
 
 GIT BRANCH OUTPUT (git branch -a)
 -----------------------------------
-[Paste the output of: git branch -a]
-
-Example:
-  * main
-    remotes/origin/main
-    remotes/origin/feature/add-config
+  backup/assignment1-current
+  backup/pre-split-feature
+  backup/pre-split-main
+  feature/add-config
+* main
+  task4-base
+  remotes/origin/feature/add-config
+  remotes/origin/main
 
 
 SELF-REVIEW ANSWERS (from the "Files changed" tab)
