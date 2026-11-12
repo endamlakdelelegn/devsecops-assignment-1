@@ -1,0 +1,444 @@
+ASSIGNMENT ONE – From Manual Deployment to a Secure Pipeline
+Module: Module One – DevOps & DevSecOps Foundations
+Student: Endamlak Muluneh
+================================================================================
+
+TASK 1 – Diagnose the Current Process
+================================================================================
+
+1. FIVE DISTINCT PROBLEMS IN MEDITRACK'S CURRENT PROCESS
+---------------------------------------------------------
+
+Problem 1: Long-lived feature branches / integration hell
+  Consequence: Because each developer works in isolation for three months and
+  merges by hand in the final week, MediTrack regularly faces conflicts and
+  broken code at the worst possible time – right before a release.
+
+Problem 2: Manual testing / no automated tests
+  Consequence: Because there are no automated tests, the team spends two full
+  days clicking through the application before every release, which is slow,
+  error-prone, and cannot catch regressions introduced at the last minute.
+
+Problem 3: Manual deployment
+  Consequence: Because the deployment steps exist only in one senior developer's
+  personal notebook, nobody else can release the system, and a missed step can
+  silently break production whenever he is absent or in a hurry.
+
+Problem 4: Secrets in source control
+  Consequence: Because the database password and SMS key are committed inside
+  config.js, every developer who has ever cloned the repository holds a copy of
+  the production credentials, and any future leak of the repository exposes them.
+
+Problem 5: Late security review / security as a gate at the end
+  Consequence: Because the security consultant reviews the system only once a
+  year, two weeks before release, there is never enough time to fix findings,
+  so MediTrack accepts known vulnerabilities and ships them to the clinics.
+
+
+2. WHY SEVEN FINDINGS WERE "ACCEPTED RISK"
+-------------------------------------------
+The seven findings were marked "accepted risk" because the security review
+happened at the very end of the development cycle, two weeks before the annual
+release. At that point the cost of fixing a vulnerability – in time, testing,
+and potential destabilisation of the release – felt higher than the perceived
+risk of shipping it. This is a direct consequence of treating security as a
+final gate rather than a continuous activity. The principle this breaks is
+Shift Left: security checks must be moved earlier in the SDLC so that problems
+are found when they are cheap to fix, not when the team is under release
+pressure and every change carries risk.
+
+
+3. WHICH ONE PROBLEM TO FIX FIRST
+-----------------------------------
+I would fix secrets in source control first.
+
+The other four problems cause delays, bugs, and inefficiency, but they do not
+by themselves hand an attacker the keys to the production database. A committed
+secret is an immediate, concrete security risk: anyone who has ever cloned the
+repository – including former employees, contractors, or an attacker who finds
+a public fork – already holds the production credentials. Unlike a slow
+deployment process, a leaked credential can be exploited silently and
+continuously without MediTrack ever knowing. Fixing this first (by rotating the
+credentials, removing them from the repository history, and moving them to
+environment variables or a secrets manager) closes an active exposure before
+any other improvement is made.
+
+
+================================================================================
+TASK 2 – Design the Delivery Pipeline
+================================================================================
+
+1. DEVOPS LIFECYCLE LOOP (9 stages in order)
+---------------------------------------------
+
+  Plan --> Code --> Build --> Test --> Release --> Deploy --> Operate --> Monitor
+    ^                                                                        |
+    |________________________________________________________________________|
+
+Stages:
+  1. Plan     – define features, user stories, security requirements
+  2. Code     – write and review code, run pre-commit hooks
+  3. Build    – compile/bundle, run unit tests, produce an artifact
+  4. Test     – integration tests, SAST, dependency scan
+  5. Release  – tag the artifact, run DAST, security sign-off
+  6. Deploy   – push artifact to staging then production
+  7. Operate  – run the live system, manage configuration
+  8. Monitor  – observe logs, metrics, alerts
+  (back to Plan based on feedback)
+
+
+2. CI/CD PIPELINE FOR MEDITRACK (≥8 stages)
+--------------------------------------------
+
+  Stage                         | Who performs it
+  ------------------------------|----------------
+  1. Code push / pull request   | MANUAL (developer pushes)
+  2. Secret scanning            | AUTOMATIC
+  3. Dependency scanning        | AUTOMATIC
+  4. Build                      | AUTOMATIC
+  5. Unit & integration tests   | AUTOMATIC
+  6. SAST (static analysis)     | AUTOMATIC
+  7. Deploy to staging          | AUTOMATIC
+  8. DAST (dynamic analysis)    | AUTOMATIC
+  9. Deploy to production       | MANUAL (approval gate for MediTrack)
+  10. Monitoring & alerting     | AUTOMATIC
+
+
+3. FIVE SECURITY CHECKPOINTS
+------------------------------
+
+Checkpoint 1 – Secret scanning (Stage 2, on every push)
+  It belongs here, before the build, because a secret committed to the
+  repository is already exposed; catching it at the earliest possible moment
+  limits how long it is visible in history and prevents it from being baked
+  into a build artifact.
+
+Checkpoint 2 – Dependency scanning / SCA (Stage 3, on every push)
+  It belongs before the build so that a build containing a critically
+  vulnerable library is never produced; finding it here is cheaper than
+  finding it after an image has been pushed to a registry.
+
+Checkpoint 3 – SAST – Static Application Security Testing (Stage 6, after build)
+  It belongs after the build because SAST tools analyse the compiled or
+  transpiled code and can trace data flows across files; running it on the
+  built artifact gives more accurate results than running it on raw source.
+
+Checkpoint 4 – DAST – Dynamic Application Security Testing (Stage 8, on staging)
+  It belongs after deployment to staging because DAST sends real HTTP requests
+  to a running application; it cannot run against source code and must target
+  an environment that mirrors production.
+
+Checkpoint 5 – Configuration / infrastructure checks (Stage 7, deploy to staging)
+  It belongs at the staging deployment step so that misconfigurations (open
+  ports, DEBUG=true, world-readable S3 buckets) are caught before they reach
+  production, where they would be live and exploitable.
+
+
+4. GIT EVENT THAT STARTS THE PIPELINE
+---------------------------------------
+The event that starts the pipeline is a push to a branch (or the opening of a
+pull request). A pipeline cannot run on work that a developer has not pushed
+because the CI server has no visibility of changes that exist only on a local
+machine; the server can only act on commits that have been sent to the remote
+repository.
+
+
+5. "BUILD ONCE, DEPLOY MANY TIMES"
+------------------------------------
+"Build once, deploy many times" means that the CI pipeline produces a single,
+immutable artifact (a compiled binary, a Docker image, or a zip file) from a
+specific commit, and that exact artifact is promoted through staging and into
+production without being rebuilt. If MediTrack rebuilt the application
+separately for the test server and for the production server, the two builds
+could differ – a different library version could be resolved, an environment
+variable could change the compiled output, or a developer could have pushed
+another commit between the two builds. This means the tested artifact is not
+the artifact that runs in production, which invalidates all the testing that
+was done.
+
+
+================================================================================
+TASK 3 – Continuous Delivery or Continuous Deployment?
+================================================================================
+
+1. TABLE: PIPELINE STAGES UNDER CONTINUOUS DELIVERY vs CONTINUOUS DEPLOYMENT
+------------------------------------------------------------------------------
+
+  Stage                        | Continuous Delivery | Continuous Deployment
+  -----------------------------|---------------------|----------------------
+  1. Build                     | Automatic           | Automatic
+  2. Unit & integration tests  | Automatic           | Automatic
+  3. Deploy to staging         | Automatic           | Automatic
+  4. Acceptance / smoke tests  | Automatic           | Automatic
+  5. Deploy to production      | MANUAL (approval)   | Automatic
+
+
+2. CHOICE FOR MEDITRACK: CONTINUOUS DELIVERY
+---------------------------------------------
+MediTrack should adopt Continuous Delivery, not Continuous Deployment.
+
+The key reason is the nature of MediTrack's customers. Clinics must train their
+reception staff whenever the appointment screen changes. An automatic deployment
+to production every time a developer pushes a commit would mean staff could
+arrive at work to find a changed interface with no warning and no training. This
+is not a technical problem – it is an operational and contractual one.
+
+The second reason is the unreliable internet in two of the clinic regions. An
+automatic deployment that pushes a new version during working hours could
+interrupt a live session at exactly the moment a patient is being checked in.
+With Continuous Delivery, the team can schedule deployments for off-peak hours
+or maintenance windows, which is not possible if deployment is fully automatic.
+
+Continuous Delivery still gives MediTrack all the automation benefits – every
+commit is built, tested, and ready to ship – but the final step to production
+requires a human to press the button. That human can confirm that the clinics
+have been notified, that the deployment window is appropriate, and that the
+release notes are ready.
+
+
+3. FOUR PREREQUISITES FOR CONTINUOUS DEPLOYMENT
+-------------------------------------------------
+The four things a team must have before Continuous Deployment is safe:
+
+  1. A comprehensive automated test suite that covers the application well
+     enough that a green pipeline genuinely means the software is correct.
+  2. Automated rollback – the ability to detect a bad deployment and revert
+     to the previous version without human intervention.
+  3. Feature flags – the ability to deploy code to production without
+     activating it for users, so that incomplete features do not affect
+     live users.
+  4. Monitoring and alerting – real-time visibility into errors, latency,
+     and business metrics so that a bad deployment is detected in seconds,
+     not when a clinic phones the office.
+
+MediTrack currently has none of these. It has no automated tests, no
+deployment automation at all (let alone rollback), no feature flags, and
+no monitoring beyond phone calls from clinics.
+
+
+================================================================================
+TASK 4 – Build the Course Repository
+================================================================================
+
+REPOSITORY URL
+--------------
+https://github.com/endamlakdelelegn/devsecops-assignment-1
+
+
+GIT LOG OUTPUT (git log --oneline --graph --all)
+-------------------------------------------------
+[Paste the output of: git log --oneline --graph --all]
+
+Example output after completing Tasks 4 and 5:
+  * bfe2021 (HEAD -> main, feature/add-config) Initial commit: add app entry point, config module, env example and gitignore
+
+
+PULL REQUEST URL
+----------------
+https://github.com/endamlakdelelegn/devsecops-assignment-1/pull/1
+
+
+GIT BRANCH OUTPUT (git branch -a)
+-----------------------------------
+[Paste the output of: git branch -a]
+
+Example:
+  * main
+    remotes/origin/main
+    remotes/origin/feature/add-config
+
+
+SELF-REVIEW ANSWERS (from the "Files changed" tab)
+----------------------------------------------------
+Q1: Is there any secret in this change?
+  No. The .env file is excluded by .gitignore and does not appear in the diff.
+  The .env.example file contains only variable names with no values.
+
+Q2: Is anything included that should have been ignored?
+  No. node_modules/ and .env are both listed in .gitignore and are absent from
+  the staged files.
+
+Q3: Does the commit message explain the change?
+  Yes. The commit message "Initial commit: add app entry point, config module,
+  env example and gitignore" names each file added and its purpose.
+
+
+WHY "git add ." WITHOUT READING "git status" FIRST IS A BAD HABIT
+-------------------------------------------------------------------
+Running git add . blindly stages every untracked and modified file in the
+working directory, including files that should be ignored (such as .env or
+generated build artefacts) if the .gitignore was not set up correctly or was
+added after the file was already created. In a DevSecOps course, this is
+especially dangerous because a single careless git add . is how real secrets
+end up committed to repositories.
+
+
+================================================================================
+TASK 5 – Environment Variables and Secrets
+================================================================================
+
+FILES COMMITTED vs NOT COMMITTED
+----------------------------------
+
+  File              | Committed? | Reason
+  ------------------|------------|-----------------------------------------------
+  .env.example      | YES        | Contains only variable names, no values; safe
+                    |            | to share so teammates know what vars are needed
+  .gitignore        | YES        | Must be committed so Git enforces the rules for
+                    |            | every developer who clones the repo
+  config/env.js     | YES        | Application code; contains no secrets, only
+                    |            | reads from process.env
+  app/index.js      | YES        | Application code; prints only APP_NAME and PORT
+  README.md         | YES        | Documentation; contains no secrets
+  package.json      | YES        | Dependency manifest; contains no secrets
+  .env              | NO         | Contains real (invented) secret values; listed
+                    |            | in .gitignore and must never be committed
+
+
+WHY app/index.js DOES NOT PRINT DATABASE_URL OR SMS_API_KEY
+-------------------------------------------------------------
+Printing DATABASE_URL or SMS_API_KEY to the console would write them into
+application logs, which are often stored, forwarded to log aggregators, or
+visible to people who do not need access to those credentials.
+
+
+GIT STATUS OUTPUT (paste actual output here)
+---------------------------------------------
+[Run: git status]
+Expected output (after committing all safe files):
+  On branch feature/add-config
+  nothing to commit, working tree clean
+
+
+GIT CHECK-IGNORE OUTPUT (paste actual output here)
+---------------------------------------------------
+[Run: git check-ignore -v .env]
+Expected output:
+  .gitignore:2:.env    .env
+
+This confirms that line 2 of .gitignore is the rule that causes .env to be
+ignored.
+
+
+WHERE PRODUCTION VALUES SHOULD ACTUALLY BE STORED
+---------------------------------------------------
+A student saying "my secrets are safe because they are in a .env file" is only
+partially correct. A .env file on a developer's local machine is reasonably
+safe as long as it is listed in .gitignore and never committed. However, a
+.env file is a plain-text file on disk – it is not encrypted, it is not
+access-controlled beyond filesystem permissions, and it can be accidentally
+committed, copied, or exposed in a log. For MediTrack's production server, the
+values for DATABASE_URL and SMS_API_KEY should be stored in the host
+environment (set by the server's operating system or container orchestrator,
+not in a file on disk) or in a dedicated secrets manager such as AWS Secrets
+Manager, HashiCorp Vault, or GitHub Actions encrypted secrets. For the CI/CD
+pipeline, they should be stored as encrypted pipeline secrets (e.g. GitHub
+Actions secrets), injected into the build environment at runtime and never
+written to disk or printed to logs.
+
+
+================================================================================
+TASK 6 – The Leaked Key
+================================================================================
+
+1. IS THE KEY SAFE AFTER DELETING config.js?
+---------------------------------------------
+NO. The key is not safe.
+
+Reason 1 – Git history is permanent:
+  Git stores every commit permanently. Deleting a file in a new commit does not
+  remove it from the repository's history. Anyone who clones the repository, or
+  who already has a clone, can run "git log", "git show", or "git checkout" on
+  the earlier commit and retrieve the exact contents of config.js including the
+  SMS key. The deletion commit only removes the file from the current working
+  tree; it does not rewrite history.
+
+Reason 2 – The repository may already have been read:
+  Between Monday (when the key was pushed) and Wednesday (when it was noticed),
+  the repository was publicly accessible for at least two days. Automated bots
+  continuously scan GitHub for newly committed secrets. The key may already have
+  been harvested, stored in a third-party database, and used. Deleting the file
+  has no effect on copies that already exist outside the repository.
+
+
+2. CORRECT RESPONSE STEPS IN ORDER
+------------------------------------
+
+  Step 1 – Revoke / rotate the SMS API key immediately.
+    This is first because it is the only action that actually stops an attacker
+    who already has the key. Every other step is forensic or preventive; this
+    one cuts off the active exposure.
+
+  Step 2 – Notify the SMS provider.
+    This is second because the provider may have already detected unusual usage
+    or may be able to confirm whether the key was used maliciously; they also
+    need to know to invalidate the old key on their side.
+
+  Step 3 – Audit the SMS provider's usage logs.
+    This is third because once the key is revoked, the team needs to understand
+    whether it was used by an attacker, how many messages were sent, and whether
+    any data was exfiltrated or costs were incurred.
+
+  Step 4 – Remove the secret from Git history using git filter-repo or BFG.
+    This is fourth because it reduces the long-term risk of the key being found
+    by someone who clones the repository in the future, but it is not urgent
+    compared to revoking the key; the key is already compromised.
+
+  Step 5 – Force-push the cleaned history and notify all collaborators to
+    re-clone.
+    This is fifth because after rewriting history, every existing clone still
+    contains the old commits; all team members must discard their local copies
+    and re-clone from the cleaned remote.
+
+  Step 6 – Move the new key to an environment variable / secrets manager and
+    update the deployment process.
+    This is last because it is the permanent fix that prevents recurrence; it
+    is important but not urgent compared to stopping the active exposure.
+
+
+3. MOST URGENT STEP AND WHY CLEANING HISTORY IS NOT MOST URGENT
+-----------------------------------------------------------------
+The most urgent step is Step 1: revoke the key immediately.
+
+Cleaning the Git history is important for reducing future exposure, but it does
+nothing about the present one. The key has already been in a public repository
+for at least two days. Automated scanners index GitHub in near-real time, so
+the key may already be in external databases that are completely unaffected by
+any change to the repository. Cleaning the history is a hygiene measure; it
+does not invalidate the key, it does not stop an attacker who already has it,
+and it does not undo any damage already done. Only revoking the key at the
+provider stops the bleeding.
+
+
+4. WHY A PUBLIC REPOSITORY CHANGES HOW FAST THE TEAM MUST ACT
+---------------------------------------------------------------
+A public repository is indexed by search engines and by automated secret-
+scanning bots within minutes of a push. This means the window between the
+commit and the key being harvested is measured in minutes, not days. A private
+repository limits exposure to people who already have access; a public one
+exposes the secret to the entire internet immediately, so the team must treat
+the key as already compromised from the moment of the push and act accordingly.
+
+
+5. TWO AUTOMATED CONTROLS THAT WOULD HAVE PREVENTED OR DETECTED THIS
+----------------------------------------------------------------------
+
+Control 1 – Pre-commit secret scanning (e.g. git-secrets, detect-secrets,
+  or gitleaks as a pre-commit hook).
+  Where in the pipeline: runs on the developer's machine before the commit is
+  created. It scans the staged diff for patterns that match known secret formats
+  (API keys, connection strings, private keys) and blocks the commit if a match
+  is found. This would have stopped the developer from committing the key in
+  the first place.
+
+Control 2 – GitHub push protection / secret scanning in the CI pipeline
+  (e.g. GitHub's built-in secret scanning, or gitleaks in a CI workflow step).
+  Where in the pipeline: runs on the CI server on every push to the remote
+  repository, before any other stage. If a secret pattern is detected in the
+  pushed commits, the push is blocked (with push protection) or the pipeline
+  fails immediately and alerts the team. This is a second line of defence that
+  catches anything the pre-commit hook missed.
+
+================================================================================
+END OF ASSIGNMENT ONE
+================================================================================
