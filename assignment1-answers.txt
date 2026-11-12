@@ -235,7 +235,7 @@ Example output after completing Tasks 4 and 5:
 
 PULL REQUEST URL
 ----------------
-[Paste the URL of the merged pull request here]
+https://github.com/endamlakdelelegn/devsecops-assignment-1/pull/1
 
 
 GIT BRANCH OUTPUT (git branch -a)
