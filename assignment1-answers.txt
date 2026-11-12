@@ -1,7 +1,6 @@
 ASSIGNMENT ONE – From Manual Deployment to a Secure Pipeline
 Module: Module One – DevOps & DevSecOps Foundations
-Student: Abenezer Tesfaye
-Student Number: [Your Student Number]
+Student: Endamlak Muluneh
 ================================================================================
 
 TASK 1 – Diagnose the Current Process
@@ -223,8 +222,7 @@ TASK 4 – Build the Course Repository
 
 REPOSITORY URL
 --------------
-[Paste your GitHub repository URL here after pushing]
-Example: https://github.com/<your-username>/devsecops-assignment-1
+https://github.com/endamlakdelelegn/devsecops-assignment-1
 
 
 GIT LOG OUTPUT (git log --oneline --graph --all)
@@ -238,7 +236,6 @@ Example output after completing Tasks 4 and 5:
 PULL REQUEST URL
 ----------------
 [Paste the URL of the merged pull request here]
-Example: https://github.com/<your-username>/devsecops-assignment-1/pull/1
 
 
 GIT BRANCH OUTPUT (git branch -a)

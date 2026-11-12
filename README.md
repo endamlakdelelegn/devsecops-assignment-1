@@ -1,7 +1,6 @@
 # devsecops-assignment-1
 
-**Student:** Abenezer Tesfaye  
-**Student Number:** [Your Student Number]
+**Student:** Endamlak Muluneh  
 
 ## Description
 
